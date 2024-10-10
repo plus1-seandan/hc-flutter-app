@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "138014654166",
+    "project_id": "hcauth-7be30",
+    "storage_bucket": "hcauth-7be30.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:138014654166:android:95304155be63e802c65377",
+        "android_client_info": {
+          "package_name": "com.example.hc_flutter_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCzQejvO7-9oR1_HJxPSoEeg31dTJCK8Bo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

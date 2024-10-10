@@ -1,8 +1,66 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:intl/intl.dart';
+import 'package:namer_app/auth.dart';
 
-class HouseChurchPage extends StatelessWidget {
+class HouseChurchPage extends StatefulWidget {
+  @override
+  _HouseChurchPageState createState() => _HouseChurchPageState();
+}
+
+class _HouseChurchPageState extends State<HouseChurchPage> {
+  String location = 'Loading...';
+  String dateTime = 'Loading...';
+
+  Future<void> signOut() async {
+    await Auth().signOut();
+  }
+
+  Widget _signoutButton() {
+    return ElevatedButton(onPressed: signOut, child: const Text('Sign Out'));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchHouseChurchDetails();
+  }
+
+  Future<void> fetchHouseChurchDetails() async {
+    try {
+      final response = await http.get(
+          Uri.parse('http://192.168.1.74:8000/api/hostingSchedule/getLatest'));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        setState(() {
+          location = data['latestHostingSchedule']?['memberId']?['address'] ??
+              'Unknown Address';
+          var dateTimeDate =
+              DateTime.parse(data['latestHostingSchedule']?['date']);
+          String formattedDate =
+              DateFormat('MMMM d, yyyy').format(dateTimeDate);
+          dateTime = formattedDate;
+        });
+      } else {
+        setState(() {
+          location = 'Failed to load location';
+          dateTime = 'Failed to load date & time';
+        });
+      }
+    } catch (error) {
+      setState(() {
+        location = 'Error loading location';
+        dateTime = 'Error loading date & time';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    print(context);
     return Scaffold(
       appBar: AppBar(
         title: Text('House Church This Week'),
@@ -34,7 +92,7 @@ class HouseChurchPage extends StatelessWidget {
                     ),
                     SizedBox(height: 10),
                     Text(
-                      '123 Main Street, Springfield',
+                      location,
                       style: TextStyle(fontSize: 20),
                       textAlign: TextAlign.center,
                     ),
@@ -49,10 +107,11 @@ class HouseChurchPage extends StatelessWidget {
                     ),
                     SizedBox(height: 10),
                     Text(
-                      'Sunday, 5:00 PM',
+                      dateTime,
                       style: TextStyle(fontSize: 20),
                       textAlign: TextAlign.center,
                     ),
+                    _signoutButton()
                   ],
                 ),
               ),

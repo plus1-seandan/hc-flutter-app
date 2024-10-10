@@ -1,11 +1,15 @@
 import 'package:english_words/english_words.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:namer_app/pages/main_page.dart';
 import 'package:namer_app/pages/members_info.dart';
 import 'package:namer_app/pages/prayer_requests.dart';
+import 'package:namer_app/widget_tree.dart';
 import 'package:provider/provider.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(MyApp());
 }
 
@@ -23,7 +27,8 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         ),
-        home: MyHomePage(title: appTitle),
+        home: WidgetTree(),
+        // home: MyHomePage(title: appTitle),
       ),
     );
   }
