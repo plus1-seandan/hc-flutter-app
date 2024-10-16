@@ -1,8 +1,11 @@
-import 'dart:math';
+import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:namer_app/auth.dart';
+import 'package:http/http.dart' as http;
+import 'package:namer_app/configs/api_configs.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   LoginPage({Key? key}) : super(key: key);
@@ -20,8 +23,20 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> signInWithEmailAndPassword() async {
     try {
-      await Auth().signInWithEmailAndPassword(
+      var user = await Auth().signInWithEmailAndPassword(
           email: _controllerEmail.text, password: _controllerPassword.text);
+      final memberResponse = await http.get(
+          Uri.parse('${ApiConfig.baseUrl}/api/member/email/${user?.email}'));
+      if (memberResponse.statusCode == 200) {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final data = jsonDecode(memberResponse.body);
+        await prefs.setString('memberId', data["member"]["_id"]);
+        await prefs.setString('hcId', data["member"]["hcId"]);
+      } else {
+        setState(() {
+          errorMessage = 'Failed to load member data';
+        });
+      }
     } on FirebaseAuthException catch (e) {
       setState(() {
         errorMessage = e.message;

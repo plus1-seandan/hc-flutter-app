@@ -1,21 +1,29 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:namer_app/auth.dart';
+import 'package:namer_app/configs/api_configs.dart';
+import 'package:namer_app/models/member_model.dart';
+import 'package:namer_app/models/prayer_request_model.dart';
+import 'package:namer_app/widgets/app_drawer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PrayerRequestsPage extends StatefulWidget {
   @override
   _PrayerRequestsPageState createState() => _PrayerRequestsPageState();
 }
 
-class PrayerRequest {
-  final String name;
-  final String request;
-
-  PrayerRequest({required this.name, required this.request});
-}
-
 class _PrayerRequestsPageState extends State<PrayerRequestsPage> {
   List<PrayerRequest> prayerRequests = [];
+  List<Member> houseChurchMembers = [];
+
+  final User? user = Auth().currentUser;
+  int _selectedIndex = 1;
+
+  // Default selected item
+  Member? _selectedMember;
+  String? _prayerRequest;
 
   @override
   void initState() {
@@ -23,58 +31,63 @@ class _PrayerRequestsPageState extends State<PrayerRequestsPage> {
     fetchPrayerRequests(); // Fetch prayer requests when the page initializes
   }
 
+  List<PrayerRequest> parsePrayerRequests(String responseBody) {
+    final parsed = jsonDecode(responseBody);
+    return (parsed['prayerRequests'] as List)
+        .map<PrayerRequest>((json) => PrayerRequest.fromJson(json))
+        .toList();
+  }
+
+  List<Member> parseMembers(String responseBody) {
+    final parsed = jsonDecode(responseBody);
+    return (parsed['members'] as List)
+        .map<Member>((json) => Member.fromJson(json))
+        .toList();
+  }
+
   Future<void> fetchPrayerRequests() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? hcId = prefs.getString('hcId');
     final response = await http
-        .get(Uri.parse('http://192.168.1.74:8000/api/prayerRequest/'));
+        .get(Uri.parse('${ApiConfig.baseUrl}/api/prayerRequest/$hcId'));
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-
       setState(() {
-        prayerRequests = (data['prayerRequests'] as List)
-            .map((request) => PrayerRequest(
-                  name: request['memberId']['name'] ?? 'Unknown',
-                  request: request['request'] ?? 'No request provided',
-                ))
-            .toList();
+        prayerRequests = parsePrayerRequests(response.body);
+        houseChurchMembers = parseMembers(response.body);
       });
     }
   }
 
-  /*
-  Future<void> addPrayerRequest(String name, String request) async {
-    // Create a new prayer request object
+  Future<void> addPrayerRequest() async {
+    print(_selectedMember);
+    print(_prayerRequest);
+    if (_selectedMember == null || _prayerRequest == null) {
+      return;
+    }
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? hcId = prefs.getString('hcId');
+
     final newRequest = {
-      'memberId': {'name': name}, // Adjust this according to your API
-      'request': request,
+      "hcId": hcId,
+      'memberId':
+          _selectedMember?.id, // Use the member ID from the selected member
+      'request': _prayerRequest,
     };
-
-    // Send a POST request to the server
-    final response = await http.post(
-      Uri.parse('http://192.168.1.74:8000/api/prayerRequest/'),
+    await http.post(
+      Uri.parse(
+          '${ApiConfig.baseUrl}/api/prayerRequest'), // Update to your API endpoint
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(newRequest),
+      body: jsonEncode(newRequest), // Encode the request body to JSON
     );
-
-    // Check if the request was successful
-    if (response.statusCode == 201) {
-      // If successful, add the new request to the list and update the UI
-      final data = jsonDecode(response.body);
-      setState(() {
-        prayerRequests.add(PrayerRequest(
-          name: data['prayerRequest']['memberId']
-              ['name'], // Update according to response structure
-          request: data['prayerRequest']['request'],
-        ));
-      });
-    } else {
-      // Handle errors
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add prayer request')),
-      );
-    }
+    setState(() {
+      prayerRequests.add(new PrayerRequest(
+          member: _selectedMember!, request: _prayerRequest!));
+      _selectedMember = null;
+      _prayerRequest = null;
+    });
   }
-  */
+
   void showAddRequestDialog() {
     final nameController = TextEditingController();
     final requestController = TextEditingController();
@@ -84,24 +97,54 @@ class _PrayerRequestsPageState extends State<PrayerRequestsPage> {
       builder: (context) {
         return AlertDialog(
           title: Text('Add Prayer Request'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(labelText: 'Name'),
-              ),
-              TextField(
-                controller: requestController,
-                decoration: InputDecoration(labelText: 'Request'),
-              ),
-            ],
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButton<Member>(
+                    value: _selectedMember, // Current selected value
+                    hint: Text(
+                        'Select Member'), // Default text if nothing is selected
+                    icon: Icon(Icons
+                        .arrow_downward), // The icon displayed on the right
+                    onChanged: (Member? newValue) {
+                      setState(() {
+                        _selectedMember =
+                            newValue; // Update the selected member
+                      });
+                    },
+                    items: houseChurchMembers
+                        .map<DropdownMenuItem<Member>>((Member member) {
+                      return DropdownMenuItem<Member>(
+                        value: member,
+                        child: Text(member.name),
+                      );
+                    }).toList(), // List of items to display in the dropdown
+                  ),
+                  TextField(
+                    controller: requestController,
+                    decoration: InputDecoration(
+                      labelText: 'Request',
+                      border: OutlineInputBorder(), // Optional: Add a border
+                    ),
+                    maxLines: 5, // Set the number of lines
+                    minLines: 3, // Minimum lines to show
+                    onChanged: (String? newString) {
+                      setState(() {
+                        _prayerRequest =
+                            newString; // Update the selected member
+                      });
+                    },
+                  ),
+                ],
+              );
+            },
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                // Add the prayer request and close the dialog
-                // addPrayerRequest(nameController.text, requestController.text);
+              onPressed: () async {
+                await addPrayerRequest();
                 Navigator.of(context).pop();
               },
               child: Text('Add'),
@@ -124,6 +167,16 @@ class _PrayerRequestsPageState extends State<PrayerRequestsPage> {
       appBar: AppBar(
         title: Text('Prayer Requests'),
       ),
+      drawer: AppDrawer(
+        selectedIndex: _selectedIndex,
+        onItemTapped: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+          // Close the drawer after selection
+          Navigator.pop(context);
+        },
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ListView.builder(
@@ -144,7 +197,7 @@ class _PrayerRequestsPageState extends State<PrayerRequestsPage> {
                     Expanded(
                       flex: 2,
                       child: Text(
-                        prayerRequest.name, // Access name directly
+                        prayerRequest.member.name, // Access name directly
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
